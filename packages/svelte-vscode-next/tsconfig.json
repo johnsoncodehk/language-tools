@@ -1,0 +1,15 @@
+{
+    "extends": "@tsconfig/node12/tsconfig.json",
+    "compilerOptions": {
+        "moduleResolution": "node",
+        "strict": true,
+        "declaration": true,
+        "outDir": "dist",
+        "sourceMap": true,
+        "composite": true
+    },
+    "references": [
+        { "path": "../language-server-next" },
+        { "path": "../typescript-plugin-next" },
+    ]
+}

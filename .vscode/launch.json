@@ -16,6 +16,20 @@
             }
         },
         {
+            "name": "Run VS Code Extension (Next)",
+            "type": "extensionHost",
+            "request": "launch",
+            "runtimeExecutable": "${execPath}",
+            "args": ["--extensionDevelopmentPath=${workspaceRoot}/packages/svelte-vscode-next"],
+            "stopOnEntry": false,
+            "sourceMaps": true,
+            "outFiles": ["${workspaceRoot}/packages/svelte-vscode-next/dist/**/*.js"],
+            "preLaunchTask": "npm: watch",
+            "env": {
+                "TSS_DEBUG": "5859"
+            }
+        },
+        {
             "type": "node",
             "request": "launch",
             "name": "Run 'svelte2tsx/repl/debug.ts' with debugger",

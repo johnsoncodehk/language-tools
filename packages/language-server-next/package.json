@@ -1,0 +1,21 @@
+{
+	"name": "svelte-language-server-next",
+	"version": "0.0.1",
+	"main": "out/index.js",
+	"license": "MIT",
+	"files": [
+		"out/**/*.js",
+		"out/**/*.d.ts"
+	],
+	"bin": {
+		"svelte-language-server": "./bin/svelte-language-server.js"
+	},
+	"dependencies": {
+		"@volar-plugins/css": "^1.0.16",
+		"@volar-plugins/html": "^1.0.16",
+		"@volar-plugins/typescript": "1.0.16",
+		"@volar/language-server": "1.0.16",
+		"svelte-language-server": "^0.14.40",
+		"svelte-language-tool-core": "0.0.1"
+	}
+}
