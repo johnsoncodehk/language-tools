@@ -1,5 +1,5 @@
 import { decode, SourceMapMappings } from '@jridgewell/sourcemap-codec';
-import { DocumentCapabilities, EmbeddedFileKind, PositionCapabilities, SourceFile } from '@volar/language-core';
+import { FileCapabilities, FileKind, FileRangeCapabilities, VirtualFile } from '@volar/language-core';
 import { SvelteConfig } from 'svelte-language-server/dist/src/lib/documents/configLoader';
 import { extractScriptTags, extractStyleTag, extractTemplateTag, getLangAttribute } from 'svelte-language-server/dist/src/lib/documents/utils';
 import type { SvelteSnapshotOptions } from 'svelte-language-server/dist/src/plugins/typescript/DocumentSnapshot';
@@ -7,23 +7,24 @@ import { getScriptKindFromAttributes, getTsCheckComment } from 'svelte-language-
 import { svelte2tsx, SvelteCompiledToTsx } from 'svelte2tsx';
 import * as html from 'vscode-html-languageservice';
 import { Position, Range, TextDocument } from 'vscode-html-languageservice';
+import type * as ts from 'typescript';
 
 const htmlLs = html.getLanguageService();
-const semanticsOnlyDocCap: DocumentCapabilities = {
+const semanticsOnlyDocCap: FileCapabilities = {
 	diagnostic: true,
 	codeAction: true,
 	inlayHint: true,
 };
-const syntaxOnlyDocCap: DocumentCapabilities = {
+const syntaxOnlyDocCap: FileCapabilities = {
 	foldingRange: true,
 	documentFormatting: true,
 	documentSymbol: true,
 };
-const fullDocCap: DocumentCapabilities = {
+const fullDocCap: FileCapabilities = {
 	...semanticsOnlyDocCap,
 	...syntaxOnlyDocCap,
 };
-const fullPosCap: PositionCapabilities = {
+const fullPosCap: FileRangeCapabilities = {
 	hover: true,
 	references: true,
 	definition: true,
@@ -37,107 +38,116 @@ const fullPosCap: PositionCapabilities = {
  * An error which occurred while trying to parse/preprocess the svelte file contents.
  */
 export interface ParserError {
-    message: string;
-    range: Range;
-    code: number;
+	message: string;
+	range: Range;
+	code: number;
 }
 
-export class SvelteFile implements SourceFile {
+export class SvelteFile implements VirtualFile {
 
-	kind = EmbeddedFileKind.TextFile;
+	kind = FileKind.TextFile;
 	capabilities = fullDocCap;
 
-	mappings!: SourceFile['mappings'];
-	embeddeds!: SourceFile['embeddeds'];
+	mappings!: VirtualFile['mappings'];
+	embeddedFiles!: VirtualFile['embeddedFiles'];
 	document!: html.TextDocument;
 	htmlDocument!: html.HTMLDocument;
-    parserError: ParserError | null = null;
+	parserError: ParserError | null = null;
 	tsx: SvelteCompiledToTsx | null = null;
 
 	constructor(
 		public ts: typeof import('typescript'),
 		public fileName: string,
-		public text: string,
+		public snapshot: ts.IScriptSnapshot,
 		public options: SvelteSnapshotOptions,
-    	public config?: SvelteConfig,
+		public config?: SvelteConfig,
 	) {
-		this.onTextUpdated();
+		this.onSnapshotUpdated();
 	}
 
-	public update(newText: string) {
-		this.text = newText;
-		this.onTextUpdated();
+	public update(newSnapshot: ts.IScriptSnapshot) {
+		this.snapshot = newSnapshot;
+		this.onSnapshotUpdated();
 	}
 
-	onTextUpdated() {
+	onSnapshotUpdated() {
 		this.mappings = [{
-			sourceRange: [0, this.text.length],
-			generatedRange: [0, this.text.length],
+			sourceRange: [0, this.snapshot.getLength()],
+			generatedRange: [0, this.snapshot.getLength()],
 			data: fullPosCap,
 		}]
-		this.document = html.TextDocument.create(this.fileName, 'svelte', 0, this.text);
+		this.document = html.TextDocument.create(this.fileName, 'svelte', 0, this.snapshot.getText(0, this.snapshot.getLength()));
 		this.htmlDocument = htmlLs.parseHTMLDocument(this.document);
-		this.embeddeds = [];
+		this.embeddedFiles = [];
 		this.addStyleTag();
 		this.addTemplateTag();
 		this.addScriptTags();
-		for (const e of this.embeddeds) {
-			console.log(e.fileName, e.text.length);
-		}
 	}
 
 	addStyleTag() {
-		const styleTag = extractStyleTag(this.text, this.htmlDocument);
+		const styleTag = extractStyleTag(this.snapshot.getText(0, this.snapshot.getLength()), this.htmlDocument);
 		if (styleTag) {
-			this.embeddeds.push({
+			this.embeddedFiles.push({
 				fileName: this.fileName + '.style.' + (getLangAttribute(styleTag) ?? 'css'),
-				kind: EmbeddedFileKind.TextFile,
-				text: styleTag.content,
+				kind: FileKind.TextFile,
+				snapshot: {
+					getText: (start, end) => styleTag.content.substring(start, end),
+					getLength: () => styleTag.content.length,
+					getChangeRange: () => undefined,
+				},
 				mappings: [{
 					sourceRange: [styleTag.start, styleTag.end],
 					generatedRange: [0, styleTag.content.length],
 					data: fullPosCap,
 				}],
 				capabilities: fullDocCap,
-				embeddeds: [],
+				embeddedFiles: [],
 			});
 			console.log(styleTag.content);
 		}
 	}
 
 	addTemplateTag() {
-		const templateTag = extractTemplateTag(this.text, this.htmlDocument);
+		const templateTag = extractTemplateTag(this.snapshot.getText(0, this.snapshot.getLength()), this.htmlDocument);
 		if (templateTag) {
-			this.embeddeds.push({
+			this.embeddedFiles.push({
 				fileName: this.fileName + '.template.' + (getLangAttribute(templateTag) ?? 'html'),
-				kind: EmbeddedFileKind.TextFile,
-				text: templateTag.content,
+				kind: FileKind.TextFile,
+				snapshot: {
+					getText: (start, end) => templateTag.content.substring(start, end),
+					getLength: () => templateTag.content.length,
+					getChangeRange: () => undefined,
+				},
 				mappings: [{
 					sourceRange: [templateTag.start, templateTag.end],
 					generatedRange: [0, templateTag.content.length],
 					data: fullPosCap,
 				}],
 				capabilities: fullDocCap,
-				embeddeds: [],
+				embeddedFiles: [],
 			});
 		}
 	}
 
 	addScriptTags() {
-		const scriptTags = extractScriptTags(this.text, this.htmlDocument);
+		const scriptTags = extractScriptTags(this.snapshot.getText(0, this.snapshot.getLength()), this.htmlDocument);
 		for (const scriptTag of [scriptTags?.moduleScript, scriptTags?.script]) {
 			if (scriptTag) {
-				this.embeddeds.push({
+				this.embeddedFiles.push({
 					fileName: this.fileName + '.script.' + (getLangAttribute(scriptTag) ?? 'js'),
-					kind: EmbeddedFileKind.TextFile,
-					text: scriptTag.content,
+					kind: FileKind.TextFile,
+					snapshot: {
+						getText: (start, end) => scriptTag.content.substring(start, end),
+						getLength: () => scriptTag.content.length,
+						getChangeRange: () => undefined,
+					},
 					mappings: [{
 						sourceRange: [scriptTag.start, scriptTag.end],
 						generatedRange: [0, scriptTag.content.length],
 						data: {},
 					}],
 					capabilities: syntaxOnlyDocCap,
-					embeddeds: [],
+					embeddedFiles: [],
 				});
 			}
 		}
@@ -154,12 +164,12 @@ export class SvelteFile implements SourceFile {
 				: this.ts.ScriptKind.JSX;
 
 		try {
-			this.tsx = svelte2tsx(this.text, {
+			this.tsx = svelte2tsx(this.snapshot.getText(0, this.snapshot.getLength()), {
 				filename: this.fileName,
 				isTsFile: this.options.useNewTransformation
 					? scriptKind === this.ts.ScriptKind.TS
 					: scriptKind === this.ts.ScriptKind.TSX,
-            	mode: this.options.useNewTransformation ? 'ts' : 'tsx',
+				mode: this.options.useNewTransformation ? 'ts' : 'tsx',
 				typingsNamespace: this.options.useNewTransformation ? this.options.typingsNamespace : undefined,
 				emitOnTemplateError: this.options.transformOnTemplateError,
 				namespace: this.config?.compilerOptions?.namespace,
@@ -180,13 +190,18 @@ export class SvelteFile implements SourceFile {
 				}
 			}
 
-			this.embeddeds.push({
+			const tsxCode = this.tsx.code;
+			this.embeddedFiles.push({
 				fileName: this.fileName + (this.options.useNewTransformation ? '.ts' : '.tsx'),
-				text: this.tsx.code,
-				kind: EmbeddedFileKind.TypeScriptHostFile,
+				snapshot: {
+					getText: (start, end) => tsxCode.substring(start, end),
+					getLength: () => tsxCode.length,
+					getChangeRange: () => undefined,
+				},
+				kind: FileKind.TypeScriptHostFile,
 				capabilities: semanticsOnlyDocCap,
-				mappings: fromV3Mappings(this.text, this.tsx.code, decode(this.tsx.map.mappings), baseOffset),
-				embeddeds: [],
+				mappings: fromV3Mappings(this.snapshot.getText(0, this.snapshot.getLength()), this.tsx.code, decode(this.tsx.map.mappings), baseOffset),
+				embeddedFiles: [],
 			});
 		} catch (e: any) {
 			// Error start/end logic is different and has different offsets for line, so we need to convert that
@@ -195,28 +210,32 @@ export class SvelteFile implements SourceFile {
 				character: e.start?.column ?? 0
 			};
 			const end: Position = e.end ? { line: e.end.line - 1, character: e.end.column } : start;
-	
+
 			this.parserError = {
 				range: { start, end },
 				message: e.message,
 				code: -1
 			};
-	
+
 			// fall back to extracted script, if any
 			const scriptInfo = scriptTags?.script || scriptTags?.moduleScript;
 			const text = scriptInfo ? scriptInfo.content : '';
 
-			this.embeddeds.push({
+			this.embeddedFiles.push({
 				fileName: this.fileName + (this.options.useNewTransformation ? '.ts' : '.tsx'),
-				text,
-				kind: EmbeddedFileKind.TypeScriptHostFile,
+				snapshot: {
+					getText: (start, end) => text.substring(start, end),
+					getLength: () => text.length,
+					getChangeRange: () => undefined,
+				},
+				kind: FileKind.TypeScriptHostFile,
 				capabilities: semanticsOnlyDocCap,
 				mappings: [{
 					sourceRange: [scriptInfo?.start ?? 0, scriptInfo?.end ?? 0],
 					generatedRange: [0, text.length],
 					data: fullPosCap,
 				}],
-				embeddeds: [],
+				embeddedFiles: [],
 			});
 		}
 	}
@@ -226,7 +245,7 @@ function fromV3Mappings(text: string, generatedText: string, v3Mappings: SourceM
 
 	const sourcedDoc = TextDocument.create('', '', 0, text);
 	const genDoc = TextDocument.create('', '', 0, generatedText);
-	const mappings: SourceFile['mappings'] = [];
+	const mappings: VirtualFile['mappings'] = [];
 
 	let current: {
 		genOffset: number,

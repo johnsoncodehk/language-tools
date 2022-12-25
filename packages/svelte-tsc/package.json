@@ -7,7 +7,7 @@
 	},
 	"dependencies": {
 		"svelte-language-tool-core": "0.0.1",
-		"@volar/typescript": "1.0.16"
+		"@volar/typescript": "^1.0.17"
 	},
 	"peerDependencies": {
 		"typescript": "*"

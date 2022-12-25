@@ -6,8 +6,8 @@
 	"license": "MIT",
 	"dependencies": {
 		"@jridgewell/sourcemap-codec": "^1.4.14",
-		"@volar/language-core": "^1.0.16",
-		"@volar/typescript": "^1.0.16",
+		"@volar/language-core": "^1.0.17",
+		"@volar/typescript": "^1.0.17",
 		"svelte": "^3.53.1",
 		"svelte-language-server": "^0.14.40",
 		"svelte2tsx": "^0.5.20",
