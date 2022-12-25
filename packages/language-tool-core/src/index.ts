@@ -7,20 +7,20 @@ export * from '@volar/language-core';
 
 const options: SvelteSnapshotOptions = {
 	transformOnTemplateError: true,
-	useNewTransformation: false,
+	useNewTransformation: true,
 	typingsNamespace: 'svelteHTML',
 };
 const config: SvelteConfig = {};
 
 export function createLanguageModule(ts: typeof import('typescript/lib/tsserverlibrary')): LanguageModule<SvelteFile> {
 	return {
-		createSourceFile(fileName, snapshot) {
+		createFile(fileName, snapshot) {
 			if (fileName.endsWith('.svelte')) {
-				return new SvelteFile(ts, fileName, snapshot.getText(0, snapshot.getLength()), options, config);
+				return new SvelteFile(ts, fileName, snapshot, options, config);
 			}
 		},
-		updateSourceFile(svelteFile, snapshot) {
-			svelteFile.update(snapshot.getText(0, snapshot.getLength()));
+		updateFile(svelteFile, snapshot) {
+			svelteFile.update(snapshot);
 		},
 	};
 }
