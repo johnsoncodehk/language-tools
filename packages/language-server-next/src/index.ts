@@ -1,7 +1,7 @@
 import { createLanguageModule } from 'svelte-language-tool-core';
 import createTsPlugin from '@volar-plugins/typescript';
 import createCssPlugin from '@volar-plugins/css';
-import createHtmlPlugin from '@volar-plugins/typescript';
+import createHtmlPlugin from '@volar-plugins/html';
 import { createLanguageServer, LanguageServerPlugin } from '@volar/language-server/node';
 
 const plugin: LanguageServerPlugin = () => ({

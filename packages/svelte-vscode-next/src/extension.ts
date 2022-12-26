@@ -22,8 +22,6 @@ export async function activate(context: vscode.ExtensionContext) {
 				'extensions/node_modules/typescript/lib' as path.PosixPath,
 			),
 		},
-		// @ts-expect-error
-		__noPluginCommands: true,
 	};
 	const serverModule = vscode.Uri.joinPath(context.extensionUri, 'node_modules', '.bin', 'svelte-language-server');
 	const runOptions = { execArgv: <string[]>[] };
